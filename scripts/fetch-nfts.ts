@@ -220,13 +220,18 @@ async function fetchSuperRareCreations() {
 
     for (const wallet of creators) {
         let next = '';
-        const MAX_PAGES = 10;
+        // Increase depth to finding older mints (2018).
+        // Assuming 10k events is safe upper bound for checking history.
+        const MAX_PAGES = 500;
         let count = 0;
+
+        console.log(`Scanning events for ${wallet} (up to ${MAX_PAGES} pages)...`);
 
         try {
             do {
                 const url = `${BASE_URL}/events/accounts/${wallet}`;
                 const params: Record<string, string | number> = {
+                    chain: 'ethereum', // Ensure we check Ethereum for SuperRare
                     event_type: 'transfer',
                     limit: 50
                 };
@@ -240,7 +245,8 @@ async function fetchSuperRareCreations() {
                 const events = response.data.asset_events || [];
 
                 const mints = events.filter((e: any) =>
-                    e.from_address === '0x0000000000000000000000000000000000000000' &&
+                    // Check for mint type OR null address sender
+                    (e.transfer_type === 'mint' || e.from_address === '0x0000000000000000000000000000000000000000') &&
                     e.nft &&
                     SUPERRARE_CONTRACTS.includes(e.nft.contract)
                 );

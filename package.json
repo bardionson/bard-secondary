@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run update-nfts && next build",
     "start": "next start",
     "lint": "eslint",
     "update-nfts": "tsx scripts/fetch-nfts.ts"

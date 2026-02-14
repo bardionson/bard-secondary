@@ -1,76 +1,23 @@
 import axios from 'axios';
-import { WALLET_ADDRESSES } from '@/config/wallets';
+import { TARGETS } from '@/config/targets';
 import { NFT, CollectionGroup } from './types';
 
 const OPENSEA_API_KEY = process.env.OPENSEA_API_KEY;
 const BASE_URL = 'https://api.opensea.io/api/v2';
 
-interface AssetEvent {
-  event_type: string;
-  nft: NFT;
-  from_address: string;
-  [key: string]: unknown;
-}
-
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchAllMintEvents(wallet: string) {
-  let allMints: AssetEvent[] = [];
-  let next = '';
-  let count = 0;
-  const MAX_PAGES = 5;
-
-  console.log(`Fetching mint events for ${wallet}...`);
-
-  try {
-    do {
-      const url = `${BASE_URL}/events/accounts/${wallet}`;
-      const params: Record<string, string | number> = {
-        event_type: 'transfer',
-        limit: 50,
-      };
-      if (next) params.next = next;
-
-      const response = await axios.get(url, {
-        headers: {
-          'x-api-key': OPENSEA_API_KEY,
-          'accept': 'application/json'
-        },
-        params
-      });
-
-      const events: AssetEvent[] = response.data.asset_events || [];
-
-      const mints = events.filter((e) =>
-        e.from_address === '0x0000000000000000000000000000000000000000' && e.nft
-      );
-
-      allMints = [...allMints, ...mints];
-      next = response.data.next;
-      count++;
-
-      await sleep(200);
-
-    } while (next && count < MAX_PAGES);
-  } catch (error) {
-    console.error(`Error fetching events for ${wallet}:`, error);
-  }
-
-  console.log(`Found ${allMints.length} mint events for ${wallet}`);
-  return allMints;
-}
-
-async function fetchOwnedNFTs(wallet: string) {
+async function fetchCollectionNFTs(slug: string) {
   let allNFTs: NFT[] = [];
   let next = '';
   const MAX_PAGES = 5;
   let count = 0;
 
-  console.log(`Fetching owned NFTs for ${wallet}...`);
+  console.log(`Fetching collection: ${slug}...`);
 
   try {
     do {
-      const url = `${BASE_URL}/chain/ethereum/account/${wallet}/nfts`;
+      const url = `${BASE_URL}/collection/${slug}/nfts`;
       const params: Record<string, string | number> = { limit: 50 };
       if (next) params.next = next;
 
@@ -82,19 +29,60 @@ async function fetchOwnedNFTs(wallet: string) {
         params
       });
 
-      const nfts: NFT[] = response.data.nfts || [];
+      const nfts = (response.data.nfts || []).map((item: any) => ({
+        identifier: item.identifier,
+        collection: slug,
+        contract: item.contract,
+        token_standard: item.token_standard,
+        name: item.name,
+        description: item.description,
+        image_url: item.image_url,
+        display_image_url: item.display_image_url,
+        opensea_url: item.opensea_url,
+        updated_at: item.updated_at,
+        price: null
+      }));
+
       allNFTs = [...allNFTs, ...nfts];
       next = response.data.next;
       count++;
       await sleep(200);
 
     } while (next && count < MAX_PAGES);
-  } catch (error) {
-    console.error(`Error fetching owned NFTs for ${wallet}:`, error);
+  } catch (error: any) {
+    console.error(`Error fetching collection ${slug}:`, error?.message || String(error));
   }
 
-  console.log(`Found ${allNFTs.length} owned NFTs for ${wallet}`);
+  console.log(`Found ${allNFTs.length} NFTs in ${slug}`);
   return allNFTs;
+}
+
+async function fetchSingleNFT(chain: string, contract: string, tokenId: string) {
+  const url = `${BASE_URL}/chain/${chain}/contract/${contract}/nfts/${tokenId}`;
+  try {
+    const response = await axios.get(url, {
+      headers: { 'x-api-key': OPENSEA_API_KEY, 'accept': 'application/json' }
+    });
+    const nft = response.data.nft;
+    if (nft) {
+       return [{
+        identifier: nft.identifier,
+        collection: nft.collection,
+        contract: nft.contract,
+        token_standard: nft.token_standard,
+        name: nft.name,
+        description: nft.description,
+        image_url: nft.image_url,
+        display_image_url: nft.display_image_url,
+        opensea_url: nft.opensea_url,
+        updated_at: nft.updated_at,
+        price: null
+      }];
+    }
+  } catch (error: any) {
+    console.error(`Error fetching single NFT ${contract}/${tokenId}:`, error?.message || String(error));
+  }
+  return [];
 }
 
 async function fetchListingsForContract(contract: string, tokenIds: string[]): Promise<Record<string, NFT['price']>> {
@@ -161,41 +149,31 @@ async function fetchListingsForContract(contract: string, tokenIds: string[]): P
 }
 
 export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup>> {
-  const envWallets = process.env.NEXT_PUBLIC_WALLET_ADDRESSES ? process.env.NEXT_PUBLIC_WALLET_ADDRESSES.split(',') : [];
-  const wallets = envWallets.length > 0 ? envWallets : WALLET_ADDRESSES;
+  let allNFTs: NFT[] = [];
 
-  const allNFTs: NFT[] = [];
-  const seenIds = new Set<string>();
-
-  // 1. Gather all unique NFTs
-  for (const wallet of wallets) {
-    if (!wallet) continue;
-
-    const mintEvents = await fetchAllMintEvents(wallet.trim());
-    const mintedNFTs = mintEvents.map((e) => e.nft).filter((n) => n);
-    const ownedNFTs = await fetchOwnedNFTs(wallet.trim());
-    const combined = [...mintedNFTs, ...ownedNFTs];
-
-    for (const nft of combined) {
-        const uniqueId = `${nft.contract}-${nft.identifier}`;
-        if (!seenIds.has(uniqueId)) {
-            const finalNFT: NFT = {
-                ...nft,
-                image_url: nft.display_image_url || nft.image_url,
-                price: null
-            };
-
-            if (finalNFT.image_url) {
-                allNFTs.push(finalNFT);
-                seenIds.add(uniqueId);
-            }
-        }
+  // 1. Fetch Targets
+  for (const target of TARGETS) {
+    if (target.type === 'collection') {
+      const nfts = await fetchCollectionNFTs(target.slug!);
+      allNFTs = [...allNFTs, ...nfts];
+    } else if (target.type === 'item') {
+      const nfts = await fetchSingleNFT(target.chain!, target.contract!, target.tokenId!);
+      allNFTs = [...allNFTs, ...nfts];
     }
   }
 
+  // Deduplicate
+  const seen = new Set();
+  const uniqueNFTs = allNFTs.filter(n => {
+    const id = `${n.contract}-${n.identifier}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
   // 2. Fetch Prices (Group by Contract)
   const contractMap: Record<string, string[]> = {};
-  allNFTs.forEach(nft => {
+  uniqueNFTs.forEach(nft => {
     if (!contractMap[nft.contract]) {
       contractMap[nft.contract] = [];
     }
@@ -214,7 +192,7 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
       try {
         const prices = await fetchListingsForContract(contract, tokenIds);
         // Assign prices back to NFTs
-        allNFTs.forEach(nft => {
+        uniqueNFTs.forEach(nft => {
           if (nft.contract === contract && prices[nft.identifier]) {
             nft.price = prices[nft.identifier];
           }
@@ -233,7 +211,7 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
   // 3. Group by Collection
   const grouped: Record<string, CollectionGroup> = {};
 
-  allNFTs.forEach(nft => {
+  uniqueNFTs.forEach(nft => {
       const slug = nft.collection;
       if (!grouped[slug]) {
           grouped[slug] = {

@@ -3,52 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { NFT, CollectionGroup } from '@/lib/types';
-
-// The full list of collections/items provided by the user
-const TARGETS = [
-  { type: 'collection', slug: 'color-magic-planets-by-bard-ionson' },
-  { type: 'collection', slug: '8-by-bard-ionson-1' },
-  { type: 'collection', slug: 'bards-freaky-faces' },
-  { type: 'collection', slug: 'bard-editions' },
-  { type: 'collection', slug: 'soul-scroll' },
-  { type: 'collection', slug: 'bard-ionson' },
-  { type: 'collection', slug: 'remixes-from-fountain' },
-  { type: 'collection', slug: 'simulation-number-89' },
-  { type: 'collection', slug: 'bard-ionson-home-collection' },
-  { type: 'collection', slug: 'scanning-the-scanner' },
-  { type: 'collection', slug: 'bard-ionson-3d' },
-  { type: 'item', chain: 'ethereum', contract: '0xb305904aab1d1041b9c237e46a68fc9a22d60bc2', tokenId: '8' },
-  { type: 'collection', slug: 'we-re-all-gonna' },
-  { type: 'collection', slug: 'sound-words' },
-  { type: 'collection', slug: 'ionart' },
-  { type: 'collection', slug: 'osci' },
-  { type: 'collection', slug: 'bard-ionson-fine-art' },
-  { type: 'collection', slug: 'we-are-anarchy-on-chain-polygon' }, // Might be Polygon?
-  { type: 'collection', slug: 'osci-v2' },
-  { type: 'collection', slug: 'we-are-noise-and-form-on-chain-generative-art' },
-  { type: 'collection', slug: 'bones-in-the-sky-marfa-by-bard-ionson' },
-  { type: 'collection', slug: 'power-corrupts-power-by-bard-ionson' },
-  { type: 'collection', slug: 'painting-with-fire-a-history-in-gans-by-bard-ionso' },
-  // 'bard-editions' is duplicated, skipping
-  { type: 'collection', slug: 'optimistic-bard-ionson' },
-  { type: 'collection', slug: 'word-flush-by-bard-ionson' },
-  { type: 'collection', slug: 'fountain' },
-  { type: 'collection', slug: 'smoke-and-shape' },
-  { type: 'collection', slug: 'naked-flames-in-motion' },
-  { type: 'collection', slug: 'bard-ionson-installations' },
-  { type: 'collection', slug: 'naked-flames-by-bard-ionson' },
-  { type: 'collection', slug: 'spam-art-v2' },
-  { type: 'collection', slug: 'this-is-not-a2' },
-  { type: 'collection', slug: '100-ai-x-bard-ionson' },
-  { type: 'collection', slug: 'distortions-of-the-future' },
-  { type: 'collection', slug: 'vanishing-of-the-genuine-motion-by-bard-ionson' },
-  { type: 'collection', slug: 'bones-vanishing-of-the-genuine-by-bard-ionson' },
-  { type: 'collection', slug: 'wet-kiss-by-bard-ionson' },
-  // Async Art: Special handling needed or just fetch collection?
-  // User link has traits filter. Let's try fetching collection "async-art" first,
-  // then filter locally if possible, or just include it all if they are all by Bard (likely are if linked).
-  { type: 'collection', slug: 'async-art' }
-];
+import { TARGETS } from '@/config/targets';
 
 const OPENSEA_API_KEY = process.env.OPENSEA_API_KEY;
 const BASE_URL = 'https://api.opensea.io/api/v2';
@@ -184,22 +139,6 @@ async function main() {
   for (const target of TARGETS) {
     if (target.type === 'collection') {
       const nfts = await fetchCollectionNFTs(target.slug!);
-
-      // Special filter for Async Art?
-      if (target.slug === 'async-art') {
-          // In a real app we'd filter by trait, but we don't have traits in the simplified NFT type yet.
-          // For now, let's include all found in the collection request.
-          // If the collection endpoint returns *all* Async Art (huge), we might need a different approach.
-          // Note: `GET /collection/{slug}/nfts` returns ALL NFTs in collection. Async Art is huge.
-          // This is risky.
-          // Better approach for huge shared collections: Use `GET /nfts` with `collection` param and `traits`?
-          // The generic `GET /nfts` endpoint is deprecated/removed in v2 in favor of account/collection specific.
-          // We will fetch it, but limit it? Or skip if too large.
-          // Let's rely on the user's intent. If they linked the *filtered* view, they want those items.
-          // But API doesn't support filtering by trait easily in one go.
-          // We might need to filter manually if we can fetch traits.
-      }
-
       allNFTs = [...allNFTs, ...nfts];
     } else if (target.type === 'item') {
       const nfts = await fetchSingleNFT(target.chain!, target.contract!, target.tokenId!);

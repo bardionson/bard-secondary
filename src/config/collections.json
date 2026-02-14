@@ -1,0 +1,18 @@
+{
+  "superrare": {
+    "displayName": "SuperRare",
+    "priority": 100
+  },
+  "knownorigin": {
+    "displayName": "KnownOrigin",
+    "priority": 90
+  },
+  "makersplace": {
+    "displayName": "MakersPlace",
+    "priority": 80
+  },
+  "async-art": {
+    "displayName": "Async Art",
+    "priority": 70
+  }
+}

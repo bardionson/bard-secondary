@@ -15,6 +15,13 @@ export interface NFT {
     decimals: number;
     raw: string;
   } | null;
+  // New field for multiple market prices
+  marketPrices?: {
+    market: string;
+    amount: number;
+    currency: string;
+    url?: string;
+  }[];
 }
 
 export interface CollectionGroup {

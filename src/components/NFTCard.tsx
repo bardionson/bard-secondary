@@ -12,7 +12,6 @@ interface NFTCardProps {
 
 const formatPrice = (price: NFT['price']) => {
   if (!price) return null;
-  // Display up to 4 decimal places, trimming trailing zeros if possible, or just fixed
   return `${Number(price.amount).toFixed(4).replace(/\.?0+$/, '')} ${price.currency}`;
 };
 
@@ -20,7 +19,22 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
   const [imgSrc, setImgSrc] = useState(nft.image_url || nft.display_image_url || '/placeholder.png');
   const [error, setError] = useState(false);
 
-  const priceDisplay = formatPrice(nft.price);
+  // Determine which prices to show
+  // If marketPrices exists, use that. Otherwise fallback to main price.
+  const prices = nft.marketPrices || [];
+
+  // If no marketPrices but we have main price, treat it as OpenSea
+  if (prices.length === 0 && nft.price) {
+      prices.push({
+          market: 'OpenSea',
+          amount: nft.price.amount,
+          currency: nft.price.currency,
+          url: nft.opensea_url
+      });
+  }
+
+  // Sort prices? Maybe show lowest first? Or show all.
+  // User asked to "Show the list price on SuperRare and OpenSea if there is one".
 
   // If list view
   if (viewMode === 'list') {
@@ -43,12 +57,18 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
           <p className="text-sm text-gray-500 truncate">{nft.collection}</p>
         </div>
 
-        {priceDisplay && (
-          <div className="text-right px-4">
-            <span className="block font-bold text-gray-900">{priceDisplay}</span>
-            <span className="text-xs text-gray-500">Price</span>
-          </div>
-        )}
+        <div className="text-right px-4 flex flex-col gap-1">
+          {prices.length > 0 ? (
+              prices.map((p, idx) => (
+                  <div key={idx} className="text-sm">
+                      <span className="font-bold text-gray-900">{p.amount} {p.currency}</span>
+                      <span className="text-xs text-gray-500 ml-1">({p.market})</span>
+                  </div>
+              ))
+          ) : (
+              <span className="text-sm text-gray-400">Not Listed</span>
+          )}
+        </div>
 
         <div className="text-right">
           <a
@@ -78,12 +98,14 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
 
-        {/* Price Badge on Image */}
-        {priceDisplay && (
-          <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
-            {priceDisplay}
-          </div>
-        )}
+        {/* Price Badges on Image */}
+        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+            {prices.map((p, idx) => (
+                <div key={idx} className="bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+                    {p.amount} {p.currency} <span className="opacity-70 font-normal ml-1">{p.market}</span>
+                </div>
+            ))}
+        </div>
 
         {/* Overlay with Quick Actions */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -110,10 +132,9 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
             <span className="text-xs text-gray-400">
                 {new Date(nft.updated_at).toLocaleDateString()}
             </span>
-            {priceDisplay && (
-              <span className="text-sm font-bold text-gray-900">
-                {priceDisplay}
-              </span>
+            {/* If no prices, show placeholder or nothing? */}
+            {prices.length === 0 && (
+                <span className="text-xs text-gray-300">--</span>
             )}
         </div>
       </div>

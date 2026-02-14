@@ -17,6 +17,97 @@ const SUPERRARE_CONTRACTS = [
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+async function fetchContractTokens(contract: string, creatorWallets: string[]) {
+  let allNFTs: NFT[] = [];
+  let next = '';
+  const MAX_PAGES = 50; // SuperRare contract is huge, but we need to scan it.
+  // Limiting to 50 pages * 50 items = 2500 items.
+  // If the user's items are old, they might be deep.
+  // Alternatively, try to fetch "created" by account again? No, user didn't want that.
+  // But searching the whole SR contract for 128 items is inefficient.
+  // Wait, OpenSea V2 "Get NFTs" by *Account* is what we want, but filtering by Contract!
+  // `GET /chain/ethereum/account/{address}/nfts?collection=superrare`?
+  // No, `collection` param takes slug. Slug is `superrare`.
+  // If we fetch `superrare` items owned by the creator wallet, that's "Owned", not "Created".
+  // Created items usually sit in the creator's wallet *until sold*. If sold, they are gone.
+  //
+  // Let's try the OpenSea "Get Events" (Mint) approach ONLY for these contracts?
+  // `GET /events/collection/{slug}` filtering by `event_type=item_minted`?
+  // V2 API `GET /events` supports `contract_address`.
+  // We can fetch Mints from these contracts where `from_address` == 0x0...00?
+  // And `to_address` (minter) is one of the user's wallets?
+  // This is efficient!
+
+  console.log(`Fetching mints for contract ${contract}...`);
+  let mintCount = 0;
+
+  try {
+      do {
+          const url = `${BASE_URL}/events`;
+          const params: Record<string, string | number> = {
+              chain: 'ethereum',
+              event_type: 'transfer', // Mint is a transfer from null
+              contract_address: contract,
+              limit: 50
+          };
+          if (next) params.next = next;
+
+          const response = await axios.get(url, {
+              headers: { 'x-api-key': OPENSEA_API_KEY, 'accept': 'application/json' },
+              params
+          });
+
+          const events = response.data.asset_events || [];
+
+          for (const ev of events) {
+              // Mint check: from 0x0
+              if (ev.from_address === '0x0000000000000000000000000000000000000000') {
+                  // Check if minter is one of our wallets
+                  // Note: In SR, sometimes the minter is the SR contract or proxy.
+                  // But usually `to_address` is the artist.
+                  // Let's check if `to_address` matches our wallets.
+                  // Normalize
+                  const to = (ev.to_address || '').toLowerCase();
+                  const isCreator = creatorWallets.some(w => w.toLowerCase() === to);
+
+                  if (isCreator && ev.nft) {
+                      allNFTs.push({
+                        identifier: ev.nft.identifier,
+                        collection: 'superrare',
+                        contract: contract,
+                        token_standard: 'erc721',
+                        name: ev.nft.name,
+                        description: ev.nft.description,
+                        image_url: ev.nft.image_url,
+                        display_image_url: ev.nft.display_image_url,
+                        opensea_url: ev.nft.opensea_url,
+                        updated_at: ev.nft.updated_at,
+                        price: null
+                      });
+                      mintCount++;
+                  }
+              }
+          }
+
+          next = response.data.next;
+          // Optimization: If we found enough? No, we need all 128.
+          // The event stream is time-ordered (newest first).
+          // 128 items might be spread over years.
+          // This might take a while if the contract is active.
+          // SR V2 is very active.
+
+          await sleep(200);
+          if (count++ > MAX_PAGES) break;
+
+      } while(next);
+  } catch (e: any) {
+      console.error(`Error fetching contract events: ${e.message}`);
+  }
+
+  console.log(`Found ${mintCount} created items on ${contract}`);
+  return allNFTs;
+}
+
 // ... fetchCollectionNFTs and fetchSingleNFT (keep existing logic) ...
 // Copying existing helper functions to ensure the file is complete.
 
@@ -183,70 +274,97 @@ async function fetchContractAndFilter(contract: string) {
     return [];
 }
 
+// Fallback strategy: If SR API failed (likely), use OpenSea events.
+// But Events stream for SuperRare is huge.
+// Alternative: We scrape the *specific* 12 items I found earlier? No, user wanted all.
+//
+// Let's rely on the strategy of "Fetch generic OpenSea Collection by Creator" but specifically for the SuperRare *collection slug*?
+// We tried that.
+//
+// What if we try the SuperRare API again but with different headers?
+// No, unreliable.
+//
+// New Strategy:
+// Fetch *Account* NFTs again, but this time filtered for the SuperRare contracts.
+// User said "I do not want NFTs I own".
+// But if they are *created* by the user, they might be in the user's wallet (unsold).
+// If sold, they are in others' wallets.
+//
+// The only way to get "Sold" created items is:
+// 1. Contract events (Mint) -> Filter by "To" == Artist.
+// 2. Or OpenSea "Created" tab equivalent? That uses the internal `creator` index which we can't access easily via API V2 `nfts` endpoint (it's per account ownership).
+//
+// Wait! `GET /events/accounts/{address}?event_type=transfer`
+// This gets all transfers involving the user.
+// If `from_address` == Null, it's a mint.
+// This is exactly what I had in the *original* `opensea.ts` (the "fallback" one).
+// I should use THAT logic but restrict it to the SuperRare contracts!
+//
+// Logic:
+// 1. Fetch all `transfer` events for the User's Wallets.
+// 2. Filter for `from == 0x0` (Mints).
+// 3. Filter for `contract_address` IN `SUPERRARE_CONTRACTS`.
+// 4. Extract NFT data.
+// 5. This will capture everything they minted, regardless of current owner.
+
 async function fetchSuperRareCreations() {
-    console.log("Attempting to fetch directly from SuperRare API...");
-    const username = 'bardionson';
-    const url = `https://superrare.com/api/v2/user?username=${username}`;
+    console.log("Fetching SuperRare mints via OpenSea Events...");
+    const creators = WALLET_ADDRESSES;
+    let allNFTs: NFT[] = [];
 
-    try {
-        // Get User ID
-        const userRes = await axios.get(url);
-        const userId = userRes.data.id;
+    for (const wallet of creators) {
+        let next = '';
+        const MAX_PAGES = 10;
+        let count = 0;
 
-        // Get Creations
-        // Endpoint guess: /api/v2/user/{id}/creations
-        // Or /api/v2/nft/by-user/{id}
-        // Let's try to list artworks.
+        try {
+            do {
+                const url = `${BASE_URL}/events/accounts/${wallet}`;
+                const params: Record<string, string | number> = {
+                    event_type: 'transfer',
+                    limit: 50
+                };
+                if (next) params.next = next;
 
-        // Actually, let's use a known endpoint structure or scrape the hidden API call from the site trace?
-        // Site uses: `POST https://superrare.com/api/v2/nft/get-by-creator`
+                const response = await axios.get(url, {
+                    headers: { 'x-api-key': OPENSEA_API_KEY, 'accept': 'application/json' },
+                    params
+                });
 
-        const creationsUrl = 'https://superrare.com/api/v2/nft/get-by-creator';
-        const payload = {
-            "creatorId": userId,
-            "filters": {
-                "contractAddresses": SUPERRARE_CONTRACTS
-            },
-            "limit": 200, // User said 128
-            "offset": 0
-        };
+                const events = response.data.asset_events || [];
 
-        const artRes = await axios.post(creationsUrl, payload, {
-            headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0'
-            }
-        });
+                const mints = events.filter((e: any) =>
+                    e.from_address === '0x0000000000000000000000000000000000000000' &&
+                    e.nft &&
+                    SUPERRARE_CONTRACTS.includes(e.nft.contract)
+                );
 
-        const items = artRes.data.result || [];
-        console.log(`Fetched ${items.length} items from SuperRare API.`);
+                const mapped = mints.map((e: any) => ({
+                    identifier: e.nft.identifier,
+                    collection: 'superrare',
+                    contract: e.nft.contract,
+                    token_standard: e.nft.token_standard,
+                    name: e.nft.name,
+                    description: e.nft.description,
+                    image_url: e.nft.image_url,
+                    display_image_url: e.nft.display_image_url,
+                    opensea_url: e.nft.opensea_url,
+                    updated_at: e.nft.updated_at,
+                    price: null
+                }));
 
-        return items.map((item: any) => ({
-            identifier: item.tokenId.toString(),
-            collection: 'superrare', // Force into SuperRare group
-            contract: item.contractAddress,
-            token_standard: 'erc721',
-            name: item.name,
-            description: item.description,
-            image_url: item.image,
-            display_image_url: item.image,
-            opensea_url: `https://opensea.io/assets/ethereum/${item.contractAddress}/${item.tokenId}`,
-            updated_at: new Date().toISOString(),
-            price: null,
-            marketPrices: [
-                {
-                    market: 'SuperRare',
-                    amount: item.latestPrice?.amount || item.listPrice?.amount || 0, // Simplified
-                    currency: item.latestPrice?.currency || 'ETH',
-                    url: `https://superrare.com/artwork/${item.tokenId}` // URL might vary
-                }
-            ]
-        }));
-
-    } catch (error: any) {
-        console.error("SuperRare API failed:", error.message);
-        return [];
+                allNFTs = [...allNFTs, ...mapped];
+                next = response.data.next;
+                count++;
+                await sleep(200);
+            } while (next && count < MAX_PAGES);
+        } catch (e: any) {
+            console.error(`Error fetching events for ${wallet}: ${e.message}`);
+        }
     }
+
+    console.log(`Found ${allNFTs.length} SuperRare items via mint events.`);
+    return allNFTs;
 }
 
 async function fetchListingsForContract(contract: string, tokenIds: string[]): Promise<Record<string, NFT['price']>> {

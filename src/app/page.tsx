@@ -1,8 +1,10 @@
-import { getBardIonsonArt } from '@/lib/opensea';
+import { getBardIonsonArt } from '@/lib/data-source';
 import { enrichAndSortCollections } from '@/lib/collection-utils';
 import Gallery from '@/components/Gallery';
 
-// Use ISR to regenerate the page every hour
+// Use ISR to regenerate the page every hour (for prices, if we were splitting)
+// But since the user wants the file to be static, we can stick to ISR or static.
+// The file is read at build time (or revalidation time).
 export const revalidate = 3600;
 
 export default async function Home() {

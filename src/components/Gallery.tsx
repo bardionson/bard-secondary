@@ -15,7 +15,7 @@ type SortOption = 'date' | 'name' | 'price-asc' | 'price-desc';
 export default function Gallery({ initialCollections }: GalleryProps) {
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [sortBy, setSortBy] = useState<SortOption>('date');
+  const [sortBy, setSortBy] = useState<SortOption>('price-asc');
 
   const handleToggleCollection = (slug: string) => {
     const newSlugs = new Set(selectedSlugs);

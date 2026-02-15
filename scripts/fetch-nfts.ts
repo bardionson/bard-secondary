@@ -201,15 +201,25 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
     // 1. Fetch from OpenSea Targets (Collections defined by user)
     // We keep this because Alchemy getMinted might not cover "Collections I created but didn't mint directly" (e.g. factory contracts where user isn't msg.sender)?
     // Actually, user wants specific collections.
-    for (const target of TARGETS) {
-        if (target.type === 'collection') {
-            const nfts = await fetchOpenSeaCollection(target.slug!);
-            allNFTs = [...allNFTs, ...nfts];
-        } else if (target.type === 'item') {
-            if (target.chain && target.contract && target.tokenId) {
-                console.log(`[OpenSea] Fetching item: ${target.contract}/${target.tokenId}`);
-                const nfts = await fetchSingleNFT(target.chain, target.contract, target.tokenId);
+    // Separate targets by type
+    const collections = TARGETS.filter(t => t.type === 'collection');
+    const items = TARGETS.filter(t => t.type === 'item');
 
+    // Fetch collections sequentially
+    for (const target of collections) {
+        const nfts = await fetchOpenSeaCollection(target.slug!);
+        allNFTs = [...allNFTs, ...nfts];
+    }
+
+    // Fetch items in batches to optimize time while respecting rate limits
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const batch = items.slice(i, i + BATCH_SIZE);
+        console.log(`[OpenSea] Fetching batch of ${batch.length} items (${i + 1}-${i + batch.length} of ${items.length})...`);
+
+        const results = await Promise.all(batch.map(async (target) => {
+            if (target.chain && target.contract && target.tokenId) {
+                const nfts = await fetchSingleNFT(target.chain, target.contract, target.tokenId);
                 // Assign correct collection slug if it's a known contract
                 nfts.forEach(n => {
                     const c = n.contract.toLowerCase();
@@ -217,11 +227,13 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
                         n.collection = 'superrare';
                     }
                 });
-
-                allNFTs = [...allNFTs, ...nfts];
-                await sleep(200); // Rate limit for single item fetches
+                return nfts;
             }
-        }
+            return [];
+        }));
+
+        results.forEach(r => allNFTs = [...allNFTs, ...r]);
+        await sleep(2000); // Wait 2s between batches of 5
     }
 
     // 2. Fetch from Alchemy (SuperRare, KnownOrigin, MakersPlace)
@@ -298,7 +310,7 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
                     }
                     console.log(`Updated data for ${nft.identifier}`);
                 }
-                await sleep(200); // Rate limit
+                await sleep(1500); // Rate limit
             } catch (e: any) {
                 console.error(`Failed to fetch update for ${nft.identifier}: ${e.message}`);
             }

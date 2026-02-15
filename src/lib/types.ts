@@ -8,6 +8,7 @@ export interface NFT {
   image_url: string;
   display_image_url: string;
   opensea_url: string;
+  superrare_url?: string;
   updated_at: string;
   price?: {
     amount: number;

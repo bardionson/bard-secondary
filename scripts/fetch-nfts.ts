@@ -354,6 +354,14 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
     // 4. Group
     const grouped: Record<string, CollectionGroup> = {};
     uniqueNFTs.forEach(nft => {
+        // Filter out unknown category
+        if (nft.collection === 'unknown') return;
+
+        // Add SuperRare URL if applicable
+        if (nft.collection === 'superrare') {
+            nft.superrare_url = `https://superrare.com/artwork/eth/${nft.contract}/${nft.identifier}`;
+        }
+
         const slug = nft.collection;
         if (!grouped[slug]) {
             grouped[slug] = { name: slug, slug: slug, nfts: [] };

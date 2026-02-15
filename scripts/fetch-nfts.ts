@@ -94,12 +94,19 @@ async function fetchAlchemyMintedNFTs(wallet: string) {
         // Map to our NFT format
         return nfts.map(item => {
             const mediaUrl = (item.media && item.media.length > 0) ? item.media[0].gateway : (item.rawMetadata?.image || '');
+
+            // Fix: If title is missing or just the token ID, try to get it from metadata name
+            let name = item.title || item.rawMetadata?.name;
+            if (!name || name === `#${item.tokenId}`) {
+                name = item.rawMetadata?.name || `#${item.tokenId}`;
+            }
+
             return {
                 identifier: item.tokenId,
                 collection: item.contract.openSea?.collectionName || 'unknown', // Fallback
                 contract: item.contract.address.toLowerCase(),
                 token_standard: item.tokenType ? item.tokenType.toLowerCase() : 'erc721',
-                name: item.title || item.rawMetadata?.name || `#${item.tokenId}`,
+                name: name,
                 description: item.description || item.rawMetadata?.description || '',
                 image_url: mediaUrl,
                 display_image_url: mediaUrl,
@@ -227,12 +234,14 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
         return true;
     });
 
-    // 2.5 Fetch Missing Images from OpenSea
-    console.log("Checking for missing images...");
-    const missingImages = uniqueNFTs.filter(n => !n.image_url);
-    if (missingImages.length > 0) {
-        console.log(`Found ${missingImages.length} items with missing images. Fetching from OpenSea...`);
-        for (const nft of missingImages) {
+    // 2.5 Fetch Missing Images OR Bad Titles (SuperRare) from OpenSea
+    console.log("Checking for missing images or bad titles...");
+    // Check for empty image OR title starting with # (likely missing metadata)
+    const needsRefetch = uniqueNFTs.filter(n => !n.image_url || n.name.startsWith('#'));
+
+    if (needsRefetch.length > 0) {
+        console.log(`Found ${needsRefetch.length} items needing update (images/titles). Fetching from OpenSea...`);
+        for (const nft of needsRefetch) {
             try {
                 // Fetch single asset from OpenSea
                 const url = `${BASE_URL}/chain/ethereum/contract/${nft.contract}/nfts/${nft.identifier}`;
@@ -241,13 +250,19 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
                 });
                 const osNft = response.data.nft;
                 if (osNft) {
-                    nft.image_url = osNft.image_url || osNft.display_image_url || '';
-                    nft.display_image_url = osNft.display_image_url || osNft.image_url || '';
-                    console.log(`Updated image for ${nft.name}`);
+                    if (!nft.image_url) {
+                        nft.image_url = osNft.image_url || osNft.display_image_url || '';
+                        nft.display_image_url = osNft.display_image_url || osNft.image_url || '';
+                    }
+                    // Update name if we have a better one
+                    if (osNft.name && osNft.name !== `#${nft.identifier}`) {
+                        nft.name = osNft.name;
+                    }
+                    console.log(`Updated data for ${nft.identifier}`);
                 }
                 await sleep(200); // Rate limit
             } catch (e: any) {
-                console.error(`Failed to fetch image for ${nft.identifier}: ${e.message}`);
+                console.error(`Failed to fetch update for ${nft.identifier}: ${e.message}`);
             }
         }
     }

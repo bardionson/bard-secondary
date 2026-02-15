@@ -35,10 +35,25 @@ export default function Gallery({ initialCollections }: GalleryProps) {
 
   const sortedNFTs = [...filteredNFTs].sort((a, b) => {
       switch (sortBy) {
-        case 'date-desc':
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        case 'date-asc':
-          return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+        case 'date-desc': {
+          const timeA = new Date(a.updated_at).getTime();
+          const timeB = new Date(b.updated_at).getTime();
+          if (timeA === timeB) {
+             // Fallback to token ID if dates are identical (common for batched fetch)
+             // Higher token ID usually means newer
+             return Number(b.identifier) - Number(a.identifier);
+          }
+          return timeB - timeA;
+        }
+        case 'date-asc': {
+          const timeA = new Date(a.updated_at).getTime();
+          const timeB = new Date(b.updated_at).getTime();
+          if (timeA === timeB) {
+             // Fallback to token ID
+             return Number(a.identifier) - Number(b.identifier);
+          }
+          return timeA - timeB;
+        }
         case 'name':
           return a.name.localeCompare(b.name);
         case 'price-asc':

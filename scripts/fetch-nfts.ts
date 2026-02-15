@@ -21,6 +21,21 @@ const PLATFORM_CONTRACTS = {
     'async-art': '0xb6dae651468e9593e4581705a09c10a76ac1e0c8'
 };
 
+const BLACKLIST = {
+    // KnownOrigin items to remove
+    '0xfbeef911dc5821886e1dda71586d90ed28174b7d': [
+        '21499',
+        '39709',
+        '22020',
+        '79786',
+        '87296',
+        '109739',
+        '123553',
+        '224101',
+        '511403'
+    ]
+};
+
 const alchemySettings = {
     apiKey: ALCHEMY_API_KEY,
     network: Network.ETH_MAINNET,
@@ -278,6 +293,12 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
     // Deduplicate
     const seen = new Set();
     const uniqueNFTs = allNFTs.filter(n => {
+        // Check blacklist
+        const blacklist = BLACKLIST[n.contract.toLowerCase() as keyof typeof BLACKLIST];
+        if (blacklist && blacklist.includes(n.identifier)) {
+            return false;
+        }
+
         const id = `${n.contract}-${n.identifier}`;
         if (seen.has(id)) return false;
         seen.add(id);

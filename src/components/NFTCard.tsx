@@ -70,7 +70,7 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
           )}
         </div>
 
-        <div className="text-right flex flex-col items-end gap-1">
+        <div className="text-right">
           <a
             href={nft.opensea_url}
             target="_blank"

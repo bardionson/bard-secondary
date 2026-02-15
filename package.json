@@ -10,8 +10,10 @@
     "update-nfts": "tsx scripts/fetch-nfts.ts"
   },
   "dependencies": {
+    "alchemy-sdk": "^3.6.5",
     "axios": "^1.13.5",
     "clsx": "^2.1.1",
+    "dotenv": "^17.3.1",
     "framer-motion": "^12.34.0",
     "lucide-react": "^0.564.0",
     "next": "16.1.6",

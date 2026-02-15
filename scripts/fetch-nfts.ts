@@ -227,6 +227,31 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
         return true;
     });
 
+    // 2.5 Fetch Missing Images from OpenSea
+    console.log("Checking for missing images...");
+    const missingImages = uniqueNFTs.filter(n => !n.image_url);
+    if (missingImages.length > 0) {
+        console.log(`Found ${missingImages.length} items with missing images. Fetching from OpenSea...`);
+        for (const nft of missingImages) {
+            try {
+                // Fetch single asset from OpenSea
+                const url = `${BASE_URL}/chain/ethereum/contract/${nft.contract}/nfts/${nft.identifier}`;
+                const response = await axios.get(url, {
+                    headers: { 'x-api-key': OPENSEA_API_KEY, 'accept': 'application/json' }
+                });
+                const osNft = response.data.nft;
+                if (osNft) {
+                    nft.image_url = osNft.image_url || osNft.display_image_url || '';
+                    nft.display_image_url = osNft.display_image_url || osNft.image_url || '';
+                    console.log(`Updated image for ${nft.name}`);
+                }
+                await sleep(200); // Rate limit
+            } catch (e: any) {
+                console.error(`Failed to fetch image for ${nft.identifier}: ${e.message}`);
+            }
+        }
+    }
+
     // 3. Fetch OpenSea Prices
     console.log("Fetching prices from OpenSea...");
     const contractMap: Record<string, string[]> = {};

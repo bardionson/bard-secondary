@@ -108,7 +108,27 @@ async function fetchAlchemyMintedNFTs(wallet: string) {
 
         // Map to our NFT format
         return nfts.map(item => {
-            const mediaUrl = (item.media && item.media.length > 0) ? item.media[0].gateway : (item.rawMetadata?.image || '');
+            let mediaUrl = (item.media && item.media.length > 0) ? item.media[0].gateway : (item.rawMetadata?.image || '');
+
+            // Check for video and try to get thumbnail
+            const isVideo = (item.media && item.media.some((m: any) => m.format === 'mp4' || m.format === 'webm')) || mediaUrl.match(/\.(mp4|webm)$/i);
+
+            if (isVideo) {
+                // Try to find a thumbnail in media list
+                const thumbnailMedia = item.media?.find((m: any) => m.thumbnail);
+                if (thumbnailMedia && thumbnailMedia.thumbnail) {
+                    mediaUrl = thumbnailMedia.thumbnail;
+                } else if (item.rawMetadata?.image && !item.rawMetadata.image.match(/\.(mp4|webm)$/i)) {
+                    // Fallback to metadata image if it is not the video
+                    // Note: rawMetadata.image might be IPFS, but we'll try it.
+                    // Ideally we'd convert IPFS, but often it's an HTTP url for these platforms.
+                    let img = item.rawMetadata.image;
+                    if (img.startsWith('ipfs://')) {
+                        img = img.replace('ipfs://', 'https://ipfs.io/ipfs/');
+                    }
+                    mediaUrl = img;
+                }
+            }
 
             // Fix: If title is missing or just the token ID, try to get it from metadata name
             let name = item.title || item.rawMetadata?.name;

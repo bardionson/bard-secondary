@@ -10,7 +10,7 @@ interface GalleryProps {
   initialCollections: EnrichedCollection[];
 }
 
-type SortOption = 'date' | 'name' | 'price-asc' | 'price-desc';
+type SortOption = 'date-asc' | 'date-desc' | 'name' | 'price-asc' | 'price-desc';
 
 export default function Gallery({ initialCollections }: GalleryProps) {
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
@@ -35,8 +35,10 @@ export default function Gallery({ initialCollections }: GalleryProps) {
 
   const sortedNFTs = [...filteredNFTs].sort((a, b) => {
       switch (sortBy) {
-        case 'date':
+        case 'date-desc':
           return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        case 'date-asc':
+          return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
         case 'name':
           return a.name.localeCompare(b.name);
         case 'price-asc':
@@ -162,10 +164,11 @@ export default function Gallery({ initialCollections }: GalleryProps) {
                             onChange={(e) => setSortBy(e.target.value as SortOption)}
                             className="appearance-none pl-4 pr-10 py-2.5 bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none cursor-pointer hover:bg-gray-100 transition-colors"
                         >
-                            <option value="date">Newest First</option>
-                            <option value="name">Name A-Z</option>
                             <option value="price-asc">Price: Low to High</option>
                             <option value="price-desc">Price: High to Low</option>
+                            <option value="date-desc">Newest First</option>
+                            <option value="date-asc">Oldest First</option>
+                            <option value="name">Name A-Z</option>
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                             <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">

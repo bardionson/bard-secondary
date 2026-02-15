@@ -35,8 +35,9 @@ export function enrichAndSortCollections(
     }
 
     if (!coverImage && group.nfts.length > 0) {
-      // Find first NFT with a valid image
-      const nftWithImage = group.nfts.find(n => n.image_url || n.display_image_url);
+      // Find first NFT with a valid image - search from the end (newest usually)
+      // because sometimes older items have broken images or user prefers newer ones.
+      const nftWithImage = group.nfts.slice().reverse().find(n => n.image_url || n.display_image_url);
       if (nftWithImage) {
         coverImage = nftWithImage.display_image_url || nftWithImage.image_url;
       }

@@ -70,7 +70,7 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
           )}
         </div>
 
-        <div className="text-right">
+        <div className="text-right flex flex-col items-end gap-1">
           <a
             href={nft.opensea_url}
             target="_blank"
@@ -79,6 +79,16 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
           >
             OpenSea <ExternalLink size={14} className="ml-1" />
           </a>
+          {nft.superrare_url && (
+            <a
+              href={nft.superrare_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-sm font-medium text-purple-600 hover:text-purple-800"
+            >
+              SuperRare <ExternalLink size={14} className="ml-1" />
+            </a>
+          )}
         </div>
       </div>
     );
@@ -108,7 +118,7 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
         </div>
 
         {/* Overlay with Quick Actions */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
             <a
                 href={nft.opensea_url}
                 target="_blank"
@@ -117,6 +127,16 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
             >
                 View on OpenSea
             </a>
+            {nft.superrare_url && (
+              <a
+                href={nft.superrare_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-black text-white px-4 py-2 rounded-full font-medium text-sm hover:bg-gray-800 transform translate-y-2 group-hover:translate-y-0 transition-transform"
+              >
+                View on SuperRare
+              </a>
+            )}
         </div>
       </div>
 

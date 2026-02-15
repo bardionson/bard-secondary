@@ -21,6 +21,21 @@ const PLATFORM_CONTRACTS = {
     'async-art': '0xb6dae651468e9593e4581705a09c10a76ac1e0c8'
 };
 
+const BLACKLIST = {
+    // KnownOrigin items to remove
+    '0xfbeef911dc5821886e1dda71586d90ed28174b7d': [
+        '21499',
+        '39709',
+        '22020',
+        '79786',
+        '87296',
+        '109739',
+        '123553',
+        '224101',
+        '511403'
+    ]
+};
+
 const alchemySettings = {
     apiKey: ALCHEMY_API_KEY,
     network: Network.ETH_MAINNET,
@@ -93,7 +108,27 @@ async function fetchAlchemyMintedNFTs(wallet: string) {
 
         // Map to our NFT format
         return nfts.map(item => {
-            const mediaUrl = (item.media && item.media.length > 0) ? item.media[0].gateway : (item.rawMetadata?.image || '');
+            let mediaUrl = (item.media && item.media.length > 0) ? item.media[0].gateway : (item.rawMetadata?.image || '');
+
+            // Check for video and try to get thumbnail
+            const isVideo = (item.media && item.media.some((m: any) => m.format === 'mp4' || m.format === 'webm')) || mediaUrl.match(/\.(mp4|webm)$/i);
+
+            if (isVideo) {
+                // Try to find a thumbnail in media list
+                const thumbnailMedia = item.media?.find((m: any) => m.thumbnail);
+                if (thumbnailMedia && thumbnailMedia.thumbnail) {
+                    mediaUrl = thumbnailMedia.thumbnail;
+                } else if (item.rawMetadata?.image && !item.rawMetadata.image.match(/\.(mp4|webm)$/i)) {
+                    // Fallback to metadata image if it is not the video
+                    // Note: rawMetadata.image might be IPFS, but we'll try it.
+                    // Ideally we'd convert IPFS, but often it's an HTTP url for these platforms.
+                    let img = item.rawMetadata.image;
+                    if (img.startsWith('ipfs://')) {
+                        img = img.replace('ipfs://', 'https://ipfs.io/ipfs/');
+                    }
+                    mediaUrl = img;
+                }
+            }
 
             // Fix: If title is missing or just the token ID, try to get it from metadata name
             let name = item.title || item.rawMetadata?.name;
@@ -278,6 +313,12 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
     // Deduplicate
     const seen = new Set();
     const uniqueNFTs = allNFTs.filter(n => {
+        // Check blacklist
+        const blacklist = BLACKLIST[n.contract.toLowerCase() as keyof typeof BLACKLIST];
+        if (blacklist && blacklist.includes(n.identifier)) {
+            return false;
+        }
+
         const id = `${n.contract}-${n.identifier}`;
         if (seen.has(id)) return false;
         seen.add(id);
@@ -354,6 +395,14 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
     // 4. Group
     const grouped: Record<string, CollectionGroup> = {};
     uniqueNFTs.forEach(nft => {
+        // Filter out unknown category
+        if (nft.collection === 'unknown') return;
+
+        // Add SuperRare URL if applicable
+        if (nft.collection === 'superrare') {
+            nft.superrare_url = `https://superrare.com/artwork/eth/${nft.contract}/${nft.identifier}`;
+        }
+
         const slug = nft.collection;
         if (!grouped[slug]) {
             grouped[slug] = { name: slug, slug: slug, nfts: [] };

@@ -122,6 +122,34 @@ async function fetchAlchemyMintedNFTs(wallet: string) {
     }
 }
 
+async function fetchSingleNFT(chain: string, contract: string, tokenId: string) {
+  const url = `${BASE_URL}/chain/${chain}/contract/${contract}/nfts/${tokenId}`;
+  try {
+    const response = await axios.get(url, {
+      headers: { 'x-api-key': OPENSEA_API_KEY, 'accept': 'application/json' }
+    });
+    const nft = response.data.nft;
+    if (nft) {
+       return [{
+        identifier: nft.identifier,
+        collection: nft.collection,
+        contract: nft.contract,
+        token_standard: nft.token_standard,
+        name: nft.name,
+        description: nft.description,
+        image_url: nft.image_url,
+        display_image_url: nft.display_image_url,
+        opensea_url: nft.opensea_url,
+        updated_at: nft.updated_at,
+        price: null
+      }];
+    }
+  } catch (error: any) {
+    console.error(`Error fetching single NFT ${contract}/${tokenId}:`, error?.message || String(error));
+  }
+  return [];
+}
+
 async function fetchOpenSeaListings(contract: string, tokenIds: string[]): Promise<Record<string, NFT['price']>> {
     const priceMap: Record<string, NFT['price']> = {};
     const BATCH_SIZE = 30;
@@ -178,11 +206,21 @@ export async function getBardIonsonArt(): Promise<Record<string, CollectionGroup
             const nfts = await fetchOpenSeaCollection(target.slug!);
             allNFTs = [...allNFTs, ...nfts];
         } else if (target.type === 'item') {
-            // Check if we already have it from alchemy later?
-            // Let's rely on Alchemy for the "Created" ones (SR/KO/MP) and TARGETS for the explicit collections.
-            // But we need to fetch the single items in TARGETS too.
-            // Simplified: Fetch TARGETS first.
-            // ... (implement fetchSingleNFT if needed, or skip as Alchemy might find them)
+            if (target.chain && target.contract && target.tokenId) {
+                console.log(`[OpenSea] Fetching item: ${target.contract}/${target.tokenId}`);
+                const nfts = await fetchSingleNFT(target.chain, target.contract, target.tokenId);
+
+                // Assign correct collection slug if it's a known contract
+                nfts.forEach(n => {
+                    const c = n.contract.toLowerCase();
+                    if (c === PLATFORM_CONTRACTS['superrare-v1'].toLowerCase() || c === PLATFORM_CONTRACTS['superrare-v2'].toLowerCase()) {
+                        n.collection = 'superrare';
+                    }
+                });
+
+                allNFTs = [...allNFTs, ...nfts];
+                await sleep(200); // Rate limit for single item fetches
+            }
         }
     }
 

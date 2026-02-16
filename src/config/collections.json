@@ -1,4 +1,8 @@
 {
+  "superrare": {
+    "displayName": "SuperRare",
+    "priority": 10000
+  },
   "color-magic-planets-by-bard-ionson": {
     "displayName": "Color Magic Planets",
     "priority": 1000

@@ -57,6 +57,13 @@ export default function NFTCard({ nft, viewMode }: NFTCardProps) {
           <p className="text-sm text-gray-500 truncate">{nft.collection}</p>
         </div>
 
+        <div className="px-4 text-right">
+            <span className="text-xs text-gray-500 block">Date</span>
+            <span className="text-sm font-medium text-gray-900">
+                {new Date(nft.updated_at).toLocaleDateString()}
+            </span>
+        </div>
+
         <div className="text-right px-4 flex flex-col gap-1">
           {prices.length > 0 ? (
               prices.map((p, idx) => (

@@ -27,6 +27,10 @@ export default function Gallery({ initialCollections }: GalleryProps) {
     setSelectedSlugs(newSlugs);
   };
 
+  const handleSelectAll = () => {
+    setSelectedSlugs(new Set(initialCollections.map(c => c.slug)));
+  };
+
   const allNFTs = initialCollections
     .flatMap(c => c.nfts);
 
@@ -134,17 +138,25 @@ export default function Gallery({ initialCollections }: GalleryProps) {
       <div className="flex flex-col md:flex-row gap-8 px-4 md:px-0">
         {/* Sidebar */}
         <div className="w-full md:w-64 shrink-0 space-y-6">
-            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm sticky top-4">
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-50">
+            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm sticky top-4 max-h-[calc(100vh-2rem)] flex flex-col">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-50 shrink-0">
                     <h3 className="font-bold text-gray-900">Filter Collections</h3>
-                    <button
-                      onClick={() => setSelectedSlugs(new Set())}
-                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      Clear
-                    </button>
+                    <div className="flex gap-3">
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          onClick={() => setSelectedSlugs(new Set())}
+                          className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                        >
+                          Clear
+                        </button>
+                    </div>
                 </div>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                <div className="space-y-2 overflow-y-auto pr-1 flex-1">
                     {initialCollections.map(c => {
                         const isSelected = selectedSlugs.has(c.slug);
                         return (
